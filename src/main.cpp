@@ -165,7 +165,7 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 }
 
 // My functions
-bool check_lane_space(int desired_lane, double car_s, const vector<vector<double>> &sensor_fusion, int prev_size){
+bool no_lane_space(int desired_lane, double car_s, const vector<vector<double>> &sensor_fusion, int prev_size){
   bool no_enough_space = false;
 
   for(int i=0; i<sensor_fusion.size(); i++){
@@ -293,17 +293,23 @@ int main() {
                   // ref_vel = 29.5;
                   too_close = true;
 
-                  if(lane == 0 && !check_lane_space(1, car_s, sensor_fusion, prev_size)){
-                    lane = 1;
+                  if(lane == 0){
+                    if(!no_lane_space(1, car_s, sensor_fusion, prev_size)){
+                      lane = 1;
+                    }
                   }
-                  else if(lane == 1 && !check_lane_space(0, car_s, sensor_fusion, prev_size)){
-                    lane = 0;
+                  else if(lane == 1){
+                    if(!no_lane_space(0, car_s, sensor_fusion, prev_size)){
+                      lane = 0;
+                    }
+                    else if(!no_lane_space(2, car_s, sensor_fusion, prev_size)){
+                      lane = 2;
+                    }
                   }
-                  else if(lane == 1 && !check_lane_space(2, car_s, sensor_fusion, prev_size)){
-                    lane = 2;
-                  }
-                  else if (lane == 2 && !check_lane_space(1, car_s, sensor_fusion, prev_size)){
-                    lane = 1;
+                  else if (lane == 2){
+                    if(!no_lane_space(1, car_s, sensor_fusion, prev_size)){
+                      lane = 1;
+                    }
                   }
                 }
               }
