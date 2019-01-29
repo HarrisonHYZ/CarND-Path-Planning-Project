@@ -187,6 +187,27 @@ bool no_lane_space(int desired_lane, double car_s, const vector<vector<double>> 
   return no_enough_space;
 }
 
+// This cost function is to calculate the distance between the nearest car and the ego car on both
+// left and right lane and then can choose the lane with the bigger distance
+double distance_other_lane(int desired_lane, double car_s, const vector<vector<double>> &sensor_fusion){
+	
+	double nearest_distance = 999.0;
+
+	for(int i=0; i<sensor_fusion.size(); i++){	
+	    
+	    float d = sensor_fusion[i][6];
+
+	    if(d<(2+4*desired_lane+2) && d>(2+4*desired_lane-2)){
+	    
+	      double check_car_s = sensor_fusion[i][5];
+
+	      if((check_car_s > car_s) && (check_car_s - car_s < nearest_distance)){
+	        nearest_distance = check_car_s - car_s;
+	      }
+	    }
+  	}
+  	return nearest_distance;
+}
 // End my functions
 
 int main() {
@@ -299,7 +320,15 @@ int main() {
                     }
                   }
                   else if(lane == 1){
-                    if(!no_lane_space(0, car_s, sensor_fusion, prev_size)){
+                    if(!no_lane_space(0, car_s, sensor_fusion, prev_size) && !no_lane_space(2, car_s, sensor_fusion, prev_size)){
+                      if(distance_other_lane(0, car_s, sensor_fusion) > distance_other_lane(2, car_s, sensor_fusion)){
+                      	lane = 0;
+                      }
+                      else{
+                      	lane = 2;
+                      }
+                    }
+                    else if(!no_lane_space(0, car_s, sensor_fusion, prev_size)){
                       lane = 0;
                     }
                     else if(!no_lane_space(2, car_s, sensor_fusion, prev_size)){
