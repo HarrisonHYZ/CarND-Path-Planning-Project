@@ -1,0 +1,14 @@
+The path planning model is like this:
+1, Use spline.h file to create path on the current lane with 50 points ahead. In order to meet the speed limit,
+  acceleration and jerk regulations, we will increase and decrease the points space gradually.
+2, If there is a car in front of the ego car and the speed is lower than 49.5, the ego car try to change lane
+  based on the current lane. 
+3, The ego car will check the desired lane available space. If the car s position is car_s, and there is
+  no car within [car_s-5, car+40] on the desired lane, it means the desired lane is available.
+4, If the ego car is on the left lane, it will only check the middle lane. If the car is on the right lane, it
+  will only check the middle lane. If the car is on the middle lane, it will check both of the left lane and
+  the right lane.
+5, When the car is on the middle lane and need to change lane and both of the left and right lanes are available,
+  it will calculate the distance between the ego car and the front nearest car on the left and right lane. Then
+  it will choose the lane with a bigger distance.
+6, If the car needs to change lane and no lane is available, it will follow the front car on the current lane.
