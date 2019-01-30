@@ -164,7 +164,7 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
-// My functions
+// This function is to check whether there is enough space for the ego car to change to the desired lane
 bool no_lane_space(int desired_lane, double car_s, const vector<vector<double>> &sensor_fusion, int prev_size){
   bool no_enough_space = false;
 
@@ -187,12 +187,13 @@ bool no_lane_space(int desired_lane, double car_s, const vector<vector<double>> 
   return no_enough_space;
 }
 
-// This cost function is to calculate the distance between the nearest car and the ego car on both
+// This function is to calculate the distance between the nearest car and the ego car on both
 // left and right lane and then can choose the lane with the bigger distance
 double distance_other_lane(int desired_lane, double car_s, const vector<vector<double>> &sensor_fusion){
-	
+	// The initial nearest distance between the ego car and the car on the desired lane
 	double nearest_distance = 999.0;
 
+	// Check through all cars in the sensor fusion data
 	for(int i=0; i<sensor_fusion.size(); i++){	
 	    
 	    float d = sensor_fusion[i][6];
@@ -294,33 +295,46 @@ int main() {
             // The previous path size after removing the passed points
             int prev_size = previous_path_x.size();
 
+            // Finally the ego car will pass all the waypoints in the previous path
+            // so we use the path end point as the car position
             if(prev_size > 0){
               car_s = end_path_s;
             }
 
+            // the flag to indicate whether the ego car is too close to the front car
+            // on the same lane
             bool too_close = false;
 
+            // Go through all the sensor data
             for(int i=0; i<sensor_fusion.size(); i++){
               float d = sensor_fusion[i][6];
+
+              // Check if the car is in the lane
               if(d<(2+4*lane+2) && d>(2+4*lane-2)){
                 double vx = sensor_fusion[i][3];
                 double vy = sensor_fusion[i][4];
                 double check_speed = sqrt(vx*vx+vy*vy);
                 double check_car_s = sensor_fusion[i][5];
 
+                // use the checked car position after moving all previous steps
                 check_car_s += ((double)prev_size * 0.02 * check_speed);
 
                 if((check_car_s > car_s) && ((check_car_s - car_s)<30)){
                   // ref_vel = 29.5;
                   too_close = true;
 
+                  // if on the left lane, check if has enough space on the middle lane to change
+                  // if yes then change
                   if(lane == 0){
                     if(!no_lane_space(1, car_s, sensor_fusion, prev_size)){
                       lane = 1;
                     }
                   }
                   else if(lane == 1){
+                  	// if on the middle lane, need check whether both of left and right lanes are available
                     if(!no_lane_space(0, car_s, sensor_fusion, prev_size) && !no_lane_space(2, car_s, sensor_fusion, prev_size)){
+                      // if both left and right lane are available, use the nearest front car distance to determine
+                      // which lane to choose. Choose the bigger neareast distance lane
                       if(distance_other_lane(0, car_s, sensor_fusion) > distance_other_lane(2, car_s, sensor_fusion)){
                       	lane = 0;
                       }
@@ -344,6 +358,7 @@ int main() {
               }
             }
 
+            // Change the car speed gradually to meet the acceleration and jerk regulations
             if(too_close){
               ref_vel -= 0.224;
             }
@@ -359,23 +374,28 @@ int main() {
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
           	
+          	// create a list of a widely spaced (x,y) points, evenly spaced at 30m
             vector<double> ptsx;
             vector<double> ptsy;
 
+            // reference x, y, yaw state
             double ref_x = car_x;
             double ref_y = car_y;
             double ref_yaw = deg2rad(car_yaw);
 
+            // if the previous path is almost empty, use the car as the starting reference
             if(prev_size < 2){
-              double prev_car_x = car_x - cos(car_yaw);
-              double prev_car_y = car_y - sin(car_yaw);
+            	// use two points that make the path tagent to the car
+             	double prev_car_x = car_x - cos(car_yaw);
+             	double prev_car_y = car_y - sin(car_yaw);
 
-              ptsx.push_back(prev_car_x);
-              ptsy.push_back(prev_car_y);
+             	ptsx.push_back(prev_car_x);
+             	ptsy.push_back(prev_car_y);
               
-              ptsx.push_back(car_x);
-              ptsy.push_back(car_y);
+             	ptsx.push_back(car_x);
+             	ptsy.push_back(car_y);
             }
+            // use the end two points of the previous path as the starting reference
             else{
               ref_x = previous_path_x[prev_size-1];
               ref_y = previous_path_y[prev_size-1];
@@ -391,7 +411,7 @@ int main() {
               ptsy.push_back(ref_y);
             }
 
-
+            // In Frenet add evenly 30m spaced points ahead of the starting reference point
             vector<double> next_wp0 = getXY(car_s+30, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
             vector<double> next_wp1 = getXY(car_s+60, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
             vector<double> next_wp2 = getXY(car_s+90, (2+4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -404,6 +424,7 @@ int main() {
             ptsy.push_back(next_wp1[1]);
             ptsy.push_back(next_wp2[1]);
 
+            // transform from global coordinates to car local coordinate
             for(int i=0; i<ptsx.size(); i++){
               double shift_x = ptsx[i] - ref_x;
               double shift_y = ptsy[i] - ref_y;
@@ -412,18 +433,24 @@ int main() {
               ptsy[i] = (shift_x*sin(0-ref_yaw)+shift_y*cos(0-ref_yaw));
             }
 
+            // create a spline
             tk::spline s;
 
+            // set (x,y) points to the spline
             s.set_points(ptsx,ptsy);
 
+            // define the actual (x,y) points we will use
             vector<double> next_x_vals;
             vector<double> next_y_vals;
 
+            // add the remaining points in the previous path
             for(int i=0; i<previous_path_x.size(); i++){
               next_x_vals.push_back(previous_path_x[i]);
               next_y_vals.push_back(previous_path_y[i]);
             }
 
+            // calculate how to break up the spline points so we can travel at the desired
+            // velocity
             double target_x = 30.0;
             double target_y = s(target_x);
             double target_dist = sqrt(target_x*target_x+target_y*target_y);
@@ -437,6 +464,7 @@ int main() {
 
               x_add_on = x_point;
 
+              // transfer back to the global coordinates from car local coordinates
               double x_ref = x_point;
               double y_ref = y_point;
 
